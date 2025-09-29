@@ -49,6 +49,35 @@ class mainWin(QMainWindow):
 		global SUPPLY_ERROR
 		global TEMP_ERROR
 		
+		self.outFile = ''
+		
+		mainMenu = self.menuBar()
+		fileMenu = mainMenu.addMenu('File')
+		runMenu = mainMenu.addMenu('Run')
+		
+		startRunButton = QAction('Start Run',self)
+		startRunButton.triggered.connect(self.startRun)
+		runMenu.addAction(startRunButton)
+		
+		pauseRunButton = QAction('Pause Run',self)
+		pauseRunButton.triggered.connect(self.pauseRun)
+		runMenu.addAction(pauseRunButton)
+		
+		clearRunButton = QAction('Clear Run',self)
+		clearRunButton.triggered.connect(self.clearRun)
+		runMenu.addAction(clearRunButton)
+		
+		saveFileButton = QAction('Save Output to File',self)
+		saveFileButton.triggered.connect(self.saveFile)
+		fileMenu.addAction(saveFileButton)
+		
+		exitButton = QAction(QIcon('exit24.png'), 'Exit', self)
+		exitButton.setShortcut('Ctrl+Q')
+		exitButton.setStatusTip('Exit application')
+		exitButton.triggered.connect(self.close)
+        
+		fileMenu.addAction(exitButton)
+		
 		self.mm = mainWidget()
 		self.mm.supplyVoltUpdateSignal.connect(self.updateVolts)
 		self.mm.load01CurrentUpdateSignal.connect(self.updateCurrent01)
@@ -96,6 +125,7 @@ class mainWin(QMainWindow):
 		
 		self.listenerThread = threading.Thread(target = self.listener)
 		self.listening = True
+		self.recording = False
 		
 		self.listenerThread.start()
 		
@@ -107,6 +137,7 @@ class mainWin(QMainWindow):
 		
 		self.startTime = time.time()
 		
+		
 		while self.listening == True:
 			t = time.time() - self.startTime
 			
@@ -116,6 +147,10 @@ class mainWin(QMainWindow):
 			
 			if RM_ERROR == None:
 				try:
+					
+					self.supply01.write('*IDN?')
+					idstr = self.supply01.read()
+					
 					self.supply01.write(":OUTPut:STATe? CH1")
 					supplyMode = self.supply01.read().lower()
 					if "on" in supplyMode:
@@ -123,33 +158,76 @@ class mainWin(QMainWindow):
 					else:
 						self.mm.Supply01CurrentState = False
 						
+					self.supply01.write(f":SOURce:VOLTage?")
+					voltSet = self.supply01.read()
+					voltData.append(voltSet)
+						
 					self.supply01.write(":MEASure?")
 					#print(self.supply01.read())
-					voltData.append(float(self.supply01.read()))
-					
+					supplyVoltNow = float(self.supply01.read())
+					voltData.append(supplyVoltNow)
+						
 					self.supply01.write(":MEASure:CURRent?")
-					currentData.append(float(self.supply01.read()))
+					supplyCurrentNow = float(self.supply01.read())
+					currentData.append(supplyCurrentNow)
+					
+					self.mm.updateSupply(idstr,'None',supplyMode,supplyVoltNow,supplyCurrentNow,voltSet)
+					
+					
 					
 				except pyvisa.errors.VisaIOError:
 					SUPPLY_ERROR = 1
+					self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
 				except ValueError:
 					SUPPLY_ERROR = 1
+					self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
 				except AttributeError:
 					SUPPLY_ERROR = 1
+					self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
 				
 				try:
+					
+					self.load01.write('*IDN?')
+					idstr = self.load01.read()
+					
+					self.load01.write(":OUTPut:STATe? CH1")
+					loadMode = self.load01.read().lower()
+					if "on" in loadMode:
+						self.mm.Load01CurrentState = True
+					else:
+						self.mm.Load01CurrentState = False
+					
+					
+					self.load01.write(f":SOURce:CURRent?")
+					currSet = self.load01.read()
+					currentData.append(currSet)
+					
 					self.load01.write(":MEASure:VOLTage?")
-					voltData.append(float(self.load01.read()))
-				
+					loadVoltNow = float(self.load01.read())
+					voltData.append(loadVoltNow)
+						
 					self.load01.write(":MEASure:CURRent?")
-					currentData.append(float(self.load01.read()))
-				
+					loadCurrentNow = float(self.load01.read())
+					currentData.append(loadCurrentNow)
+					
+					
+					
+					self.mm.updateLoad(idstr,'None',loadMode,loadVoltNow,loadCurrentNow,currSet)
+					
+					
 				except pyvisa.errors.VisaIOError:
 					LOAD_01_ERROR = 1
+					self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
 				except ValueError:
 					LOAD_01_ERROR = 1
+					self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
 				except AttributeError:
 					LOAD_01_ERROR = 1
+					self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
+					
+			else:
+				self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
+				self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
 				
 			if TEMP_ERROR == None:
 				self.arduino.write(bytes(":T", 'utf-8'))
@@ -162,7 +240,9 @@ class mainWin(QMainWindow):
 						tempData = td[1].split(",")
 			
 			
-			self.mm.update(t,voltData,currentData,tempData)
+			if self.recording == True:
+				self.mm.update(t,voltData,currentData,tempData)
+				self.updateOutput(t,voltData,currentData,tempData)
 			
 			time.sleep(timeStep)
 			
@@ -191,7 +271,86 @@ class mainWin(QMainWindow):
 		else:
 			print("Trying to turn off supply")
 			self.load01.write(":OUTPut:STATe CH1,OFF")
-
+			
+	def updateOutput(self,t,voltData,currentData,tempData):
+		
+		outline = ''
+		outline += f'{t:.2f},'
+		
+		if SUPPLY_ERROR == None:
+			outline += f'{voltData[0]:.2f},'
+			outline += f'{voltData[1]:.2f},'
+			outline += f'{currentData[1]:.2f},'
+		else:
+			outline += 'error,'
+			outline += 'error,'
+			outline += 'error,'
+		
+		if LOAD_01_ERROR == None:
+			outline += f'{currentData[0]:.2f},'
+			outline += f'{voltData[2]:.2f},'
+			outline += f'{currentData[2]:.2f},'
+		else:
+			outline += 'error,'
+			outline += 'error,'
+			outline += 'error,'
+			
+		if TEMP_ERROR == None:
+			outline += f'{tempData[0]:.2f},'
+			outline += f'{tempData[1]:.2f}\n'
+			
+		else:
+			outline += 'error,'
+			outline += 'error\n'
+		
+		print(outline)
+		
+		self.outFile += outline
+		
+	
+	def saveFile(self):
+		fname = QFileDialog.getSaveFileName()
+		outfname = fname[0].split('.')[0] + '.csv'
+		f = open(outfname,'w')
+		f.write(self.outFile)
+		f.close()
+	
+		
+	def startRun(self):
+		
+		print('Starting Run')
+		self.recording = True
+		
+		self.outFile = ''
+		self.outFile += 'TIME,'
+		self.outFile += 'SUPPLY_Volt_Set,'
+		self.outFile += 'SUPPLY_Volt_Measure,'
+		self.outFile += 'SUPPLY_Current_Measure,'
+		self.outFile += 'LOAD01_Current_Set,'
+		self.outFile += 'LOAD01_Volt_Measure,'
+		self.outFile += 'LOAD01_Current_Measure,'
+		self.outFile += 'TEMP_Ambient_F,'
+		self.outFile += 'TEMP_Measure_F'
+		
+		self.outFile += "\n"
+		
+	def pauseRun(self):
+		
+		print('Pausing Run')
+		self.recording = False
+		
+	def clearRun(self):
+		
+		print('Clearing Run')
+		self.outFile = ''
+		self.startTime = time.time()
+		self.mm.TimeData = []
+		self.mm.Load01VoltData = []
+		self.mm.Load01CurrentData = []
+		self.mm.Supply01VoltData = []
+		self.mm.Supply01CurrentData = []
+		self.mm.TempAmbientFData = []
+		self.mm.TempProbeFData = []
         
 class mainWidget(QWidget):
 	
@@ -199,8 +358,6 @@ class mainWidget(QWidget):
 	supplyToggleActiveSignal = pyqtSignal()
 	load01CurrentUpdateSignal = pyqtSignal(str)
 	load01ToggleActiveSignal = pyqtSignal()
-    
-    
     
 	def __init__(self):
         
@@ -221,6 +378,7 @@ class mainWidget(QWidget):
 		self.TimeData = []
 		self.Load01VoltData = []
 		self.Load01CurrentData = []
+		self.Load01CurrentState = False
 		
 		self.Supply01VoltData = []
 		self.Supply01CurrentData = []
@@ -228,7 +386,6 @@ class mainWidget(QWidget):
 		
 		self.TempAmbientFData = []
 		self.TempProbeFData = []
-        
         
 		self.volts = self.w.addPlot(row=0, col=0)
 		self.volts.setTitle("Volts")
@@ -249,16 +406,16 @@ class mainWidget(QWidget):
 		self.ambientTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempAmbientFData)
 		self.probeTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempProbeFData)
 		
-		supplyStatus = equipmentStatusWidget('SUPPLY')
+		self.supplyStatus = equipmentStatusWidget('SUPPLY')
 		
-		loadStatus = equipmentStatusWidget('LOAD')
+		self.loadStatus = equipmentStatusWidget('LOAD')
 		
-		tempStatus = tempStatusWidget()
+		self.tempStatus = tempStatusWidget()
 		
 		equipmentLayout = QVBoxLayout()
-		equipmentLayout.addWidget(supplyStatus)
-		equipmentLayout.addWidget(loadStatus)
-		equipmentLayout.addWidget(tempStatus)
+		equipmentLayout.addWidget(self.supplyStatus)
+		equipmentLayout.addWidget(self.loadStatus)
+		equipmentLayout.addWidget(self.tempStatus)
 		
         
 		self.mainLayout = QHBoxLayout()
@@ -270,21 +427,20 @@ class mainWidget(QWidget):
 		self.setLayout(self.mainLayout)
         
 	def update(self,t,voltData,currentData,tempData):
+		# This is to update the graphing, not the immediate measured displays
 		
 		self.TimeData.append(t)
 		
 		if LOAD_01_ERROR == None:
-			self.Load01VoltData.append(voltData[0])
-			self.Load01CurrentData.append(currentData[0])
+			self.Load01VoltData.append(voltData[1])
+			self.Load01CurrentData.append(currentData[1])
 			self.Load01VoltLine.setData(self.Load01VoltData)
 			self.Load01CurrentLine.setData(self.Load01CurrentData)
 			
 			
 		if SUPPLY_ERROR == None:
-			self.Supply01VoltData.append(voltData[1])
-		
-			self.voltControl.updateMeasured(voltData[1])
-			self.Supply01CurrentData.append(currentData[1])
+			self.Supply01VoltData.append(voltData[2])
+			self.Supply01CurrentData.append(currentData[2])
 		
 			self.Supply01VoltLine.setData(self.Supply01VoltData)
 			self.Supply01CurrentLine.setData(self.Supply01CurrentData)
@@ -295,6 +451,14 @@ class mainWidget(QWidget):
 			self.ambientTempFLine.setData(self.TempAmbientFData)
 			self.probeTempFLine.setData(self.TempProbeFData)
 			
+	def updateSupply(self,idnstr,statestr,funcstr,currfl,voltfl,voltSet):
+		
+		self.voltControl.updateMeasured(voltSet)
+		self.supplyStatus.update(idnstr,statestr,funcstr,currfl,voltfl)
+		
+	def updateLoad(self,idnstr,statestr,funcstr,currfl,voltfl,currSet):
+		self.currentControl.updateMeasured(currSet)
+		self.loadStatus.update(idnstr,statestr,funcstr,currfl,voltfl)
 			
 		
 		
@@ -583,6 +747,13 @@ class equipmentStatusWidget(QGroupBox):
         mainLayout.addLayout(voltLayout)
         
         self.setLayout(mainLayout)
+        
+    def update(self,idnstr,statestr,funcstr,currfl,voltfl):
+		
+        self.stateValueLabel.setText(statestr)
+        self.functionValueLabel.setText(funcstr)
+        self.voltValueLabel.setText(f'{voltfl:.2f}')
+        self.currentValueLabel.setText(f'{currfl:.2f}')
         
 class tempStatusWidget(QGroupBox):
     
