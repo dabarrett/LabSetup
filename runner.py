@@ -1,6 +1,9 @@
 try:
     import pyvisa
     RM_ERROR = None
+    LOAD_01_ERROR = None
+    SUPPLY_ERROR = None
+    
 except ModuleNotFoundError:
     RM_ERROR = 1
     LOAD_01_ERROR = 1
@@ -86,7 +89,7 @@ class mainWin(QMainWindow):
 		
 		if RM_ERROR == None:
 			rm = pyvisa.ResourceManager()
-		#print(rm.list_resources('?*'))
+			print(rm.list_resources('?*'))
 		
 			try:
 				self.load01 = rm.open_resource(Load01DevName)
@@ -135,6 +138,11 @@ class mainWin(QMainWindow):
         
 	def listener(self):
 		
+		global RM_ERROR
+		global LOAD_01_ERROR
+		global SUPPLY_ERROR
+		global TEMP_ERROR
+		
 		self.startTime = time.time()
 		
 		
@@ -145,21 +153,28 @@ class mainWin(QMainWindow):
 			currentData = []
 			tempData = []
 			
+			
+			
 			if RM_ERROR == None:
+				
+				#print("Loading Supply\n")
+				
 				try:
 					
 					self.supply01.write('*IDN?')
 					idstr = self.supply01.read()
 					
+					
 					self.supply01.write(":OUTPut:STATe? CH1")
 					supplyMode = self.supply01.read().lower()
+					#print(supplyMode)
 					if "on" in supplyMode:
 						self.mm.Supply01CurrentState = True
 					else:
 						self.mm.Supply01CurrentState = False
 						
 					self.supply01.write(f":SOURce:VOLTage?")
-					voltSet = self.supply01.read()
+					voltSet = float(self.supply01.read())
 					voltData.append(voltSet)
 						
 					self.supply01.write(":MEASure?")
@@ -171,35 +186,44 @@ class mainWin(QMainWindow):
 					supplyCurrentNow = float(self.supply01.read())
 					currentData.append(supplyCurrentNow)
 					
-					self.mm.updateSupply(idstr,'None',supplyMode,supplyVoltNow,supplyCurrentNow,voltSet)
+					self.mm.updateSupply(idstr,'None',supplyMode,supplyCurrentNow,supplyVoltNow,voltSet)
 					
 					
 					
 				except pyvisa.errors.VisaIOError:
+					print("\t\tpyvisa error")
 					SUPPLY_ERROR = 1
 					self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
 				except ValueError:
+					print("\t\tvalue error")
 					SUPPLY_ERROR = 1
 					self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
 				except AttributeError:
+					print("\t\tattribute error")
 					SUPPLY_ERROR = 1
 					self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
+					
+				#print("\tSupply Errors " + str(SUPPLY_ERROR) + "\n")
+				
+				#print("Loading Load\n")
 				
 				try:
 					
 					self.load01.write('*IDN?')
 					idstr = self.load01.read()
+					#print(idstr)
 					
-					self.load01.write(":OUTPut:STATe? CH1")
-					loadMode = self.load01.read().lower()
-					if "on" in loadMode:
+					self.load01.write(":SOUR:INP:STAT? ")
+					loadMode = int(self.load01.read())
+					if loadMode == 1:
 						self.mm.Load01CurrentState = True
 					else:
 						self.mm.Load01CurrentState = False
 					
+					#print(loadMode)
 					
 					self.load01.write(f":SOURce:CURRent?")
-					currSet = self.load01.read()
+					currSet = float(self.load01.read())
 					currentData.append(currSet)
 					
 					self.load01.write(":MEASure:VOLTage?")
@@ -212,18 +236,23 @@ class mainWin(QMainWindow):
 					
 					
 					
-					self.mm.updateLoad(idstr,'None',loadMode,loadVoltNow,loadCurrentNow,currSet)
+					self.mm.updateLoad(idstr,'None',loadMode,loadCurrentNow,loadVoltNow,currSet)
 					
 					
 				except pyvisa.errors.VisaIOError:
+					print("\t\tpyvisa error")
 					LOAD_01_ERROR = 1
 					self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
 				except ValueError:
+					print("\t\tvalue error")
 					LOAD_01_ERROR = 1
 					self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
 				except AttributeError:
+					print("\t\tattribute error")
 					LOAD_01_ERROR = 1
 					self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
+					
+				#print("\tLoad Errors " + str(LOAD_01_ERROR) + "\n")
 					
 			else:
 				self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
@@ -244,6 +273,8 @@ class mainWin(QMainWindow):
 				self.mm.update(t,voltData,currentData,tempData)
 				self.updateOutput(t,voltData,currentData,tempData)
 			
+			
+			#print("Moving to next time step")
 			time.sleep(timeStep)
 			
 	def updateVolts(self,tgt):
@@ -267,10 +298,10 @@ class mainWin(QMainWindow):
 	def toggleLoad01(self):
 		
 		if self.mm.Load01CurrentState == False:
-			self.load01.write(":OUTPut:STATe CH1,ON")
+			self.load01.write(":SOUR:INP:STAT 1")
 		else:
 			print("Trying to turn off supply")
-			self.load01.write(":OUTPut:STATe CH1,OFF")
+			self.load01.write(":SOUR:INP:STAT 0")
 			
 	def updateOutput(self,t,voltData,currentData,tempData):
 		
@@ -296,8 +327,8 @@ class mainWin(QMainWindow):
 			outline += 'error,'
 			
 		if TEMP_ERROR == None:
-			outline += f'{tempData[0]:.2f},'
-			outline += f'{tempData[1]:.2f}\n'
+			outline += tempData[0] + ","
+			outline += tempData[1]
 			
 		else:
 			outline += 'error,'
@@ -613,9 +644,8 @@ class manualInputWidget(QGroupBox):
     def updateMeasured(self,value):
         
 
-        outstr = f"{value:.4f}"
-        self.measuredDisp.setText(outstr)
-        
+        #outstr = f'{value:.4f}'
+        self.measuredDisp.setText(str(value))
     def smallIncrease(self):
         
         self.targetValue += 0.1
@@ -750,8 +780,11 @@ class equipmentStatusWidget(QGroupBox):
         
     def update(self,idnstr,statestr,funcstr,currfl,voltfl):
 		
+        #print(idnstr)
+        idlist = idnstr.split(',')
+        #print(idlist[0])
         self.stateValueLabel.setText(statestr)
-        self.functionValueLabel.setText(funcstr)
+        self.functionValueLabel.setText(str(funcstr))
         self.voltValueLabel.setText(f'{voltfl:.2f}')
         self.currentValueLabel.setText(f'{currfl:.2f}')
         
