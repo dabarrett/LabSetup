@@ -9,6 +9,21 @@ except ModuleNotFoundError:
     LOAD_01_ERROR = 1
     SUPPLY_ERROR = 1
     
+SET_IND = 0
+SUPPLY_IND = 1
+CONV_IND = 2
+LOAD_IND = 3
+
+ELEC_DATA_LEN = 4
+
+TEMP_AMB_IND = 0
+TEMP_MEASURE_IND = 1
+TEMP_SENSE_IND =2
+
+TEMP_DATA_LEN = 3
+
+
+    
     
 import time
 import sys
@@ -149,9 +164,28 @@ class mainWin(QMainWindow):
 		while self.listening == True:
 			t = time.time() - self.startTime
 			
-			voltData = []
-			currentData = []
-			tempData = []
+			voltData = [None]*ELEC_DATA_LEN
+			# [SET_IND] is the Supply Volt setting, as read from the supply
+			# [SUPPLY_IND] is the Supply Volt measurement, as read from the supply
+			# [CONV_IND] is the power converter voltage, measured after the converter, by the INA260
+			# [LOAD_IND] is the Load voltage, as measured by the load generator
+			
+			currentData = [None]*ELEC_DATA_LEN
+			# [SET_IND] is the Load Current setting, as read from the load
+			# [SUPPLY_IND] is the Supply Current measurement, as read from the supply
+			# [CONV_IND] is the power converter current, measured after the converter, by the INA260
+			# [LOAD_IND] is the Load current, as measured by the load generator
+			
+			tempData = [None]*3
+			# [TEMP_AMB_IND] is the ambient temperature
+			# [TEMP_MEASURE_IND] is the measured temperature
+			# [TEMP_SENSE_IND] is the sensed temperatature at the power converter
+			
+			powerData = [None]*ELEC_DATA_LEN
+			# [SET_IND] is not used, for now
+			# [SUPPLY_IND] is the Supply power measurement, as read from the supply
+			# [CONV_IND] is the power converter power, measured after the converter, by the INA260
+			# [LOAD_IND] is the Load power, as measured by the load generator
 			
 			
 			
@@ -175,33 +209,37 @@ class mainWin(QMainWindow):
 						
 					self.supply01.write(f":SOURce:VOLTage?")
 					voltSet = float(self.supply01.read())
-					voltData.append(voltSet)
+					voltData[SET_IND] = voltSet
 						
 					self.supply01.write(":MEASure?")
 					#print(self.supply01.read())
 					supplyVoltNow = float(self.supply01.read())
-					voltData.append(supplyVoltNow)
+					voltData[1] = supplyVoltNow
 						
 					self.supply01.write(":MEASure:CURRent?")
 					supplyCurrentNow = float(self.supply01.read())
-					currentData.append(supplyCurrentNow)
+					currentData[1] = supplyCurrentNow
 					
-					self.mm.updateSupply(idstr,'None',supplyMode,supplyCurrentNow,supplyVoltNow,voltSet)
+					self.supply01.write(":MEASure:POWEr? CH1")
+					supplyPowerNow = float(self.supply01.read())
+					powerData[0] = supplyPowerNow
+					
+					self.mm.updateSupply(idstr,'None',supplyMode,currentData[SUPPLY_IND],voltData[SUPPLY_IND],voltData[SET_IND],powerData[SUPPLY_IND])
 					
 					
 					
 				except pyvisa.errors.VisaIOError:
 					print("\t\tpyvisa error")
 					SUPPLY_ERROR = 1
-					self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
+					self.mm.updateSupply('None','ERROR','None',currentData[SUPPLY_IND],voltData[SUPPLY_IND],voltData[SET_IND],powerData[SUPPLY_IND])
 				except ValueError:
 					print("\t\tvalue error")
 					SUPPLY_ERROR = 1
-					self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
+					self.mm.updateSupply('None','ERROR','None',currentData[SUPPLY_IND],voltData[SUPPLY_IND],voltData[SET_IND],powerData[SUPPLY_IND])
 				except AttributeError:
 					print("\t\tattribute error")
 					SUPPLY_ERROR = 1
-					self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
+					self.mm.updateSupply('None','ERROR','None',currentData[SUPPLY_IND],voltData[SUPPLY_IND],voltData[SET_IND],powerData[SUPPLY_IND])
 					
 				#print("\tSupply Errors " + str(SUPPLY_ERROR) + "\n")
 				
@@ -224,39 +262,42 @@ class mainWin(QMainWindow):
 					
 					self.load01.write(f":SOURce:CURRent?")
 					currSet = float(self.load01.read())
-					currentData.append(currSet)
+					currentData[0] = currSet
 					
 					self.load01.write(":MEASure:VOLTage?")
 					loadVoltNow = float(self.load01.read())
-					voltData.append(loadVoltNow)
+					voltData[3] = loadVoltNow
 						
 					self.load01.write(":MEASure:CURRent?")
 					loadCurrentNow = float(self.load01.read())
-					currentData.append(loadCurrentNow)
+					currentData[3] = loadCurrentNow
+					
+					self.load01.write(":MEASure:POWer[:DC]?")
+					loadPowerNow = float(self.load01.read())
+					powerData[2] = loadPowerNow
 					
 					
-					
-					self.mm.updateLoad(idstr,'None',loadMode,loadCurrentNow,loadVoltNow,currSet)
+					self.mm.updateLoad(idstr,'None',loadMode,currentData[LOAD_IND],voltData[LOAD_IND],currentData[SET_IND],powerData[LOAD_IND])
 					
 					
 				except pyvisa.errors.VisaIOError:
 					print("\t\tpyvisa error")
 					LOAD_01_ERROR = 1
-					self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
+					self.mm.updateLoad('None','ERROR','None',currentData[LOAD_IND],voltData[LOAD_IND],currentData[SET_IND],powerData[LOAD_IND])
 				except ValueError:
 					print("\t\tvalue error")
 					LOAD_01_ERROR = 1
-					self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
+					self.mm.updateLoad('None','ERROR','None',currentData[LOAD_IND],voltData[LOAD_IND],currentData[SET_IND],powerData[LOAD_IND])
 				except AttributeError:
 					print("\t\tattribute error")
 					LOAD_01_ERROR = 1
-					self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
+					self.mm.updateLoad('None','ERROR','None',currentData[LOAD_IND],voltData[LOAD_IND],currentData[SET_IND],powerData[LOAD_IND])
 					
 				#print("\tLoad Errors " + str(LOAD_01_ERROR) + "\n")
 					
 			else:
-				self.mm.updateLoad('None','ERROR','None',-999,-999,-99)
-				self.mm.updateSupply('None','ERROR','None',-999,-999,-99)
+				self.mm.updateLoad('None','ERROR','None',currentData[LOAD_IND],voltData[LOAD_IND],currentData[SET_IND],powerData[LOAD_IND])
+				self.mm.updateSupply('None','ERROR','None',currentData[SUPPLY_IND],voltData[SUPPLY_IND],voltData[SET_IND],powerData[SUPPLY_IND])
 				
 			if TEMP_ERROR == None:
 				self.arduino.write(bytes(":T", 'utf-8'))
@@ -266,12 +307,41 @@ class mainWin(QMainWindow):
 				if ":T:" in readData:
 					td = readData.split(":T:")
 					if len(td) == 2:
-						tempData = td[1].split(",")
+						d = td[1].split(",")
+						tempData[0] = d[0]
+						tempData[1] = d[1]
+						
+						self.mm.updateTemp('None',tempData)
+					else:
+						self.mm.updateTemp('Error',['-999','-999'])
+				elif ":M:" in readData:
+					td = readData.split(":M:")
+					
+					if len(td) == 4:
+						inData = td[1].split(",")
+
+						tempData[TEMP_AMB_IND] = inData[0]
+						tempData[TEMP_MEAUSRE_IND] = inData[1]
+						tempData[TEMP_SENSE_IND] = inData[2]
+						voltData[CONV_IND] = inData[3]
+						currentData[CONV_IND] = inData[4]
+						powerData[CONV_IND] = inData[5]
+						
+						self.mm.updateTemp('None',tempData)
+						self.mm.updateConv('None',[voltData[CONV_IND],currentData[CONV_IND],powerData[CONV_IND]],supplyPowerNow)
+					else:
+						self.mm.updateTemp('Error',tempData)
+						self.mm.updateConv('Error',[voltData[CONV_IND],currentData[CONV_IND],powerData[CONV_IND]],-99)
+						
+					
+			else:
+				self.mm.updateTemp('Error',tempData)
+				self.mm.updateConv('Error',[voltData[CONV_IND],currentData[CONV_IND],powerData[CONV_IND]],-99)
 			
 			
 			if self.recording == True:
 				self.mm.update(t,voltData,currentData,tempData)
-				self.updateOutput(t,voltData,currentData,tempData)
+				self.updateOutput(t,voltData,currentData,tempData,powerData)
 			
 			
 			#print("Moving to next time step")
@@ -303,38 +373,43 @@ class mainWin(QMainWindow):
 			print("Trying to turn off supply")
 			self.load01.write(":SOUR:INP:STAT 0")
 			
-	def updateOutput(self,t,voltData,currentData,tempData):
+	def updateOutput(self,t,voltData,currentData,tempData,powerData):
 		
 		outline = ''
 		outline += f'{t:.2f},'
 		
-		if SUPPLY_ERROR == None:
-			outline += f'{voltData[0]:.2f},'
-			outline += f'{voltData[1]:.2f},'
-			outline += f'{currentData[1]:.2f},'
-		else:
-			outline += 'error,'
-			outline += 'error,'
-			outline += 'error,'
-		
-		if LOAD_01_ERROR == None:
-			outline += f'{currentData[0]:.2f},'
-			outline += f'{voltData[2]:.2f},'
-			outline += f'{currentData[2]:.2f},'
-		else:
-			outline += 'error,'
-			outline += 'error,'
-			outline += 'error,'
+		for d in voltData:
 			
-		if TEMP_ERROR == None:
-			outline += tempData[0] + ","
-			outline += tempData[1]
+			if d != None:
+				outline += f'{d:.2f},'
+			else:
+				outline += ','
+				
+		for d in currentData:
 			
-		else:
-			outline += 'error,'
-			outline += 'error\n'
+			if d != None:
+				outline += f'{d:.2f},'
+				
+			else:
+				outline += ','
+				
+		for d in powerData:
+			
+			if d != None:
+				outline += f'{d:.2f},'
+				
+			else:
+				outline += ','
+				
+		for d in tempData:
+			
+			if d != None:
+				outline += f'{d:.2f},'
+				
+			else:
+				outline += ','
 		
-		print(outline)
+		outline += '\n'
 		
 		self.outFile += outline
 		
@@ -354,16 +429,46 @@ class mainWin(QMainWindow):
 		
 		self.outFile = ''
 		self.outFile += 'TIME,'
-		self.outFile += 'SUPPLY_Volt_Set,'
-		self.outFile += 'SUPPLY_Volt_Measure,'
-		self.outFile += 'SUPPLY_Current_Measure,'
-		self.outFile += 'LOAD01_Current_Set,'
-		self.outFile += 'LOAD01_Volt_Measure,'
-		self.outFile += 'LOAD01_Current_Measure,'
-		self.outFile += 'TEMP_Ambient_F,'
-		self.outFile += 'TEMP_Measure_F'
+		
+		voltLabels = ["NULL"]*ELEC_DATA_LEN
+		voltLabels[SET_IND] = "SUPPLY_VOLT_SET"
+		voltLabels[SUPPLY_IND] = "SUPPLY_VOLT_MEASURE"
+		voltLabels[CONV_IND] = "CONV_VOLT_MEASURE"
+		voltLabels[LOAD_IND] = "LOAD_VOLT_MEASURE"
+		
+		self.outFile += (',').join(voltLabels)
+		self.outFile += ','
+		
+		currentLabels = ["NULL"]*ELEC_DATA_LEN
+		currentLabels[SET_IND] = "SUPPLY_CURRENT_SET"
+		currentLabels[SUPPLY_IND] = "SUPPLY_CURRENT_MEASURE"
+		currentLabels[CONV_IND] = "CONV_CURRENT_MEASURE"
+		currentLabels[LOAD_IND] = "LOAD_CURRENT_MEASURE"
+		
+		self.outFile += (',').join(currentLabels)
+		self.outFile += ','
+		
+		powerLabels = ["NULL"]*ELEC_DATA_LEN
+		powerLabels[SET_IND] = "SUPPLY_POWER_SET"
+		powerLabels[SUPPLY_IND] = "SUPPLY_POWER_MEASURE"
+		powerLabels[CONV_IND] = "CONV_POWER_MEASURE"
+		powerLabels[LOAD_IND] = "LOAD_POWER_MEASURE"
+		
+		self.outFile += (',').join(powerLabels)
+		self.outFile += ','
+		
+		tempLabels = ["NULL"]*TEMP_DATA_LEN
+		tempLabels[SET_IND] = "TEMP_AMB"
+		tempLabels[SUPPLY_IND] = "TEMP_MEASURE"
+		tempLabels[CONV_IND] = "TEMP_SENSE"
+		
+		self.outFile += (',').join(tempLabels)
+		self.outFile += ',PAD'
+		
 		
 		self.outFile += "\n"
+		
+		print(self.outFile)
 		
 	def pauseRun(self):
 		
@@ -393,6 +498,31 @@ class mainWidget(QWidget):
 	def __init__(self):
         
 		super().__init__()
+		
+		supplyPen = QPen()
+		supplyPen.setWidth(2)
+		supplyPen.setColor(Qt.blue)
+		
+		convPen = QPen()
+		convPen.setWidth(2)
+		convPen.setColor(Qt.green)
+		
+		loadPen = QPen()
+		loadPen.setWidth(2)
+		loadPen.setColor(Qt.white)
+		
+		setPen = QPen()
+		setPen.setWidth(2)
+		setPen.setColor(Qt.red)
+		setPen.setStyle(Qt.DashDotLine)
+		
+		ambPen = QPen()
+		ambPen.setWidth(2)
+		ambPen.setColor(Qt.blue)
+		
+		probePen = QPen()
+		probePen.setWidth(2)
+		probePen.setColor(Qt.white)
         
 		self.w = pg.GraphicsLayoutWidget()
 		self.voltControl = manualInputWidget("VOLT",voltMax,voltMin)
@@ -421,21 +551,38 @@ class mainWidget(QWidget):
 		self.volts = self.w.addPlot(row=0, col=0)
 		self.volts.setTitle("Volts")
 		self.volts.setYRange(0,15)
-		self.Load01VoltLine = self.volts.plot(x = self.TimeData,y = self.Load01VoltData)
-		self.Supply01VoltLine = self.volts.plot(x = self.TimeData,y = self.Supply01VoltData)
+		self.Load01VoltLine = self.volts.plot(x = self.TimeData,y = self.Load01VoltData,pen = loadPen)
+		self.Supply01VoltLine = self.volts.plot(x = self.TimeData,y = self.Supply01VoltData, pen = supplyPen)
+		self.ConvVoltLine = self.volts.plot(x = self.TimeData,y = self.Supply01VoltData, pen = convPen)
+		self.setVoltLine = self.volts.plot(x = self.TimeData,y = self.Supply01VoltData, pen = setPen)
 		
 		
 		self.current = self.w.addPlot(row=1, col=0)
 		self.current.setTitle("Current")
 		self.current.setYRange(-5,5)
-		self.Load01CurrentLine = self.current.plot(x = self.TimeData,y = self.Load01CurrentData)
-		self.Supply01CurrentLine = self.current.plot(x = self.TimeData,y = self.Supply01CurrentData)
+		self.Load01CurrentLine = self.current.plot(x = self.TimeData,y = self.Load01CurrentData,pen = loadPen)
+		self.Supply01CurrentLine = self.current.plot(x = self.TimeData,y = self.Supply01CurrentData, pen = supplyPen)
+		self.ConvCurrentLine = self.current.plot(x = self.TimeData,y = self.Supply01CurrentData, pen = convPen)
+		self.setCurrentLine = self.current.plot(x = self.TimeData,y = self.Supply01CurrentData, pen = setPen)
+		
+		elecLegend = self.current.addLegend()
+		elecLegend.addItem(name = "Supply",item = self.Supply01CurrentLine)
+		elecLegend.addItem(name = "Conv",item = self.ConvCurrentLine)
+		elecLegend.addItem(name = "Load",item = self.Load01CurrentLine)
+		elecLegend.addItem(name = "Set",item = self.setCurrentLine)
 		
 		self.temperature = self.w.addPlot(row=2, col=0)
 		self.temperature.setTitle("Temp (F)")
 		self.temperature.setYRange(0,150)
-		self.ambientTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempAmbientFData)
-		self.probeTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempProbeFData)
+		
+		self.ambientTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempAmbientFData, pen = ambPen)
+		self.probeTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempProbeFData, pen = probePen)
+		self.convTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempProbeFData, pen = convPen)
+		
+		tempLegend = self.temperature.addLegend()
+		tempLegend.addItem(name = "Amb",item = self.ambientTempFLine)
+		tempLegend.addItem(name = "Prob",item = self.probeTempFLine)
+		tempLegend.addItem(name = "Conv",item = self.convTempFLine)
 		
 		self.supplyStatus = equipmentStatusWidget('SUPPLY')
 		
@@ -443,11 +590,13 @@ class mainWidget(QWidget):
 		
 		self.tempStatus = tempStatusWidget()
 		
+		self.converterStatus = converterStatusWidget()
+		
 		equipmentLayout = QVBoxLayout()
 		equipmentLayout.addWidget(self.supplyStatus)
 		equipmentLayout.addWidget(self.loadStatus)
 		equipmentLayout.addWidget(self.tempStatus)
-		
+		equipmentLayout.addWidget(self.converterStatus)
         
 		self.mainLayout = QHBoxLayout()
 		self.mainLayout.addLayout(controlLayout)
@@ -482,14 +631,22 @@ class mainWidget(QWidget):
 			self.ambientTempFLine.setData(self.TempAmbientFData)
 			self.probeTempFLine.setData(self.TempProbeFData)
 			
-	def updateSupply(self,idnstr,statestr,funcstr,currfl,voltfl,voltSet):
+	def updateSupply(self,idnstr,statestr,funcstr,currfl,voltfl,voltSet,powerfl):
 		
 		self.voltControl.updateMeasured(voltSet)
-		self.supplyStatus.update(idnstr,statestr,funcstr,currfl,voltfl)
+		self.supplyStatus.update(idnstr,statestr,funcstr,currfl,voltfl,powerfl)
 		
-	def updateLoad(self,idnstr,statestr,funcstr,currfl,voltfl,currSet):
+	def updateLoad(self,idnstr,statestr,funcstr,currfl,voltfl,currSet,powerfl):
 		self.currentControl.updateMeasured(currSet)
-		self.loadStatus.update(idnstr,statestr,funcstr,currfl,voltfl)
+		self.loadStatus.update(idnstr,statestr,funcstr,currfl,voltfl,powerfl)
+		
+	def updateTemp(self,stateVal,tempValues):
+		
+		self.tempStatus.update(stateVal,tempValues)
+		
+	def updateConv(self,stateVal,convValues,inPower):
+		
+		self.converterStatus.update(stateVal,convValues,inPower)
 			
 		
 		
@@ -675,6 +832,11 @@ class equipmentStatusWidget(QGroupBox):
         
         self.setTitle(title)
         
+        labelFont = 8
+        valueFont = 10
+        valueLabelWidth = 80
+        valueLabelHeight = 20
+        
         titleLabel = QLabel(title)
         titleLabel.setFont(QFont(fontName, 14))
         titleLabel.setAlignment(Qt.AlignCenter)
@@ -690,18 +852,18 @@ class equipmentStatusWidget(QGroupBox):
         
         ####### State
         stateTitleLabel = QLabel('State')
-        stateTitleLabel.setFont(QFont(fontName, 10))
+        stateTitleLabel.setFont(QFont(fontName, labelFont))
         
         self.stateValueLabel = QLabel('5.432')
-        self.stateValueLabel.setFont(QFont(fontName, 12))
+        self.stateValueLabel.setFont(QFont(fontName, valueFont))
         self.stateValueLabel.setStyleSheet("""
         background-color: white;
         color: black;
         border: 1px solid black;
         """)
         self.stateValueLabel.setAlignment(Qt.AlignCenter)
-        self.stateValueLabel.setMinimumSize(100,30)
-        self.stateValueLabel.setMaximumSize(100,30)
+        self.stateValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.stateValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
         
         stateLayout = QHBoxLayout()
         stateLayout.addWidget(stateTitleLabel)
@@ -709,18 +871,18 @@ class equipmentStatusWidget(QGroupBox):
         
         ####### Function
         functionTitleLabel = QLabel('Function')
-        functionTitleLabel.setFont(QFont(fontName, 10))
+        functionTitleLabel.setFont(QFont(fontName, labelFont))
         
         self.functionValueLabel = QLabel('5.432')
-        self.functionValueLabel.setFont(QFont(fontName, 12))
+        self.functionValueLabel.setFont(QFont(fontName, valueFont))
         self.functionValueLabel.setStyleSheet("""
         background-color: white;
         color: black;
         border: 1px solid black;
         """)
         self.functionValueLabel.setAlignment(Qt.AlignCenter)
-        self.functionValueLabel.setMinimumSize(100,30)
-        self.functionValueLabel.setMaximumSize(100,30)
+        self.functionValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.functionValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
         
         functionLayout = QHBoxLayout()
         functionLayout.addWidget(functionTitleLabel)
@@ -728,18 +890,18 @@ class equipmentStatusWidget(QGroupBox):
         
         ####### Current
         currentTitleLabel = QLabel('Current')
-        currentTitleLabel.setFont(QFont(fontName, 10))
+        currentTitleLabel.setFont(QFont(fontName, labelFont))
         
         self.currentValueLabel = QLabel('5.432')
-        self.currentValueLabel.setFont(QFont(fontName, 12))
+        self.currentValueLabel.setFont(QFont(fontName, valueFont))
         self.currentValueLabel.setStyleSheet("""
         background-color: white;
         color: black;
         border: 1px solid black;
         """)
         self.currentValueLabel.setAlignment(Qt.AlignCenter)
-        self.currentValueLabel.setMinimumSize(100,30)
-        self.currentValueLabel.setMaximumSize(100,30)
+        self.currentValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.currentValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
         
         currentLayout = QHBoxLayout()
         currentLayout.addWidget(currentTitleLabel)
@@ -747,22 +909,41 @@ class equipmentStatusWidget(QGroupBox):
         
         ####### Voltage
         voltTitleLabel = QLabel('Volt')
-        voltTitleLabel.setFont(QFont(fontName, 10))
+        voltTitleLabel.setFont(QFont(fontName, labelFont))
         
         self.voltValueLabel = QLabel('5.432')
-        self.voltValueLabel.setFont(QFont(fontName, 12))
+        self.voltValueLabel.setFont(QFont(fontName, valueFont))
         self.voltValueLabel.setStyleSheet("""
         background-color: white;
         color: black;
         border: 1px solid black;
         """)
         self.voltValueLabel.setAlignment(Qt.AlignCenter)
-        self.voltValueLabel.setMinimumSize(100,30)
-        self.voltValueLabel.setMaximumSize(100,30)
+        self.voltValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.voltValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
         
         voltLayout = QHBoxLayout()
         voltLayout.addWidget(voltTitleLabel)
         voltLayout.addWidget(self.voltValueLabel)
+        
+        ####### Power
+        powerTitleLabel = QLabel('Power')
+        powerTitleLabel.setFont(QFont(fontName, labelFont))
+        
+        self.powerValueLabel = QLabel('5.432')
+        self.powerValueLabel.setFont(QFont(fontName, valueFont))
+        self.powerValueLabel.setStyleSheet("""
+        background-color: white;
+        color: black;
+        border: 1px solid black;
+        """)
+        self.powerValueLabel.setAlignment(Qt.AlignCenter)
+        self.powerValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.powerValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
+        
+        powerLayout = QHBoxLayout()
+        powerLayout.addWidget(powerTitleLabel)
+        powerLayout.addWidget(self.powerValueLabel)
         
         
         mainLayout = QVBoxLayout()
@@ -775,18 +956,29 @@ class equipmentStatusWidget(QGroupBox):
         mainLayout.addLayout(functionLayout)
         mainLayout.addLayout(currentLayout)
         mainLayout.addLayout(voltLayout)
+        mainLayout.addLayout(powerLayout)
         
         self.setLayout(mainLayout)
         
-    def update(self,idnstr,statestr,funcstr,currfl,voltfl):
+    def update(self,idnstr,statestr,funcstr,currfl,voltfl,powerfl):
 		
         #print(idnstr)
         idlist = idnstr.split(',')
         #print(idlist[0])
         self.stateValueLabel.setText(statestr)
         self.functionValueLabel.setText(str(funcstr))
-        self.voltValueLabel.setText(f'{voltfl:.2f}')
-        self.currentValueLabel.setText(f'{currfl:.2f}')
+        if voltfl != None:
+            self.voltValueLabel.setText(f'{voltfl:.2f}')
+        else:
+            self.voltValueLabel.setText('')
+        if currfl != None:
+            self.currentValueLabel.setText(f'{currfl:.2f}')
+        else:
+            self.currentValueLabel.setText('')
+        if powerfl != None:
+            self.powerValueLabel.setText(f'{powerfl:.2f}')
+        else:
+            self.powerValueLabel.setText('')
         
 class tempStatusWidget(QGroupBox):
     
@@ -796,93 +988,237 @@ class tempStatusWidget(QGroupBox):
         
         self.setTitle("TEMP")
         
+        labelFont = 8
+        valueFont = 10
+        valueLabelWidth = 80
+        valueLabelHeight = 20
+        
         
         ####### State
         stateTitleLabel = QLabel('State')
-        stateTitleLabel.setFont(QFont(fontName, 10))
+        stateTitleLabel.setFont(QFont(fontName, labelFont))
         
         self.stateValueLabel = QLabel('5.432')
-        self.stateValueLabel.setFont(QFont(fontName, 12))
+        self.stateValueLabel.setFont(QFont(fontName, valueFont))
         self.stateValueLabel.setStyleSheet("""
         background-color: white;
         color: black;
         border: 1px solid black;
         """)
         self.stateValueLabel.setAlignment(Qt.AlignCenter)
-        self.stateValueLabel.setMinimumSize(100,30)
-        self.stateValueLabel.setMaximumSize(100,30)
+        self.stateValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.stateValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
         
         stateLayout = QHBoxLayout()
         stateLayout.addWidget(stateTitleLabel)
         stateLayout.addWidget(self.stateValueLabel)
         
-        ####### Function
-        functionTitleLabel = QLabel('Function')
-        functionTitleLabel.setFont(QFont(fontName, 10))
-        
-        self.functionValueLabel = QLabel('5.432')
-        self.functionValueLabel.setFont(QFont(fontName, 12))
-        self.functionValueLabel.setStyleSheet("""
-        background-color: white;
-        color: black;
-        border: 1px solid black;
-        """)
-        self.functionValueLabel.setAlignment(Qt.AlignCenter)
-        self.functionValueLabel.setMinimumSize(100,30)
-        self.functionValueLabel.setMaximumSize(100,30)
-        
-        functionLayout = QHBoxLayout()
-        functionLayout.addWidget(functionTitleLabel)
-        functionLayout.addWidget(self.functionValueLabel)
-        
         ####### amb
         ambTitleLabel = QLabel('Ambient')
-        ambTitleLabel.setFont(QFont(fontName, 10))
+        ambTitleLabel.setFont(QFont(fontName, labelFont))
         
         self.ambValueLabel = QLabel('5.432')
-        self.ambValueLabel.setFont(QFont(fontName, 12))
+        self.ambValueLabel.setFont(QFont(fontName, valueFont))
         self.ambValueLabel.setStyleSheet("""
         background-color: white;
         color: black;
         border: 1px solid black;
         """)
         self.ambValueLabel.setAlignment(Qt.AlignCenter)
-        self.ambValueLabel.setMinimumSize(100,30)
-        self.ambValueLabel.setMaximumSize(100,30)
+        self.ambValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.ambValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
         
         ambLayout = QHBoxLayout()
         ambLayout.addWidget(ambTitleLabel)
         ambLayout.addWidget(self.ambValueLabel)
         
         ####### Voltage
-        targetTitleLabel = QLabel('Target')
-        targetTitleLabel.setFont(QFont(fontName, 10))
+        targetTitleLabel = QLabel('Measured')
+        targetTitleLabel.setFont(QFont(fontName, labelFont))
         
         self.targetValueLabel = QLabel('5.432')
-        self.targetValueLabel.setFont(QFont(fontName, 12))
+        self.targetValueLabel.setFont(QFont(fontName, valueFont))
         self.targetValueLabel.setStyleSheet("""
         background-color: white;
         color: black;
         border: 1px solid black;
         """)
         self.targetValueLabel.setAlignment(Qt.AlignCenter)
-        self.targetValueLabel.setMinimumSize(100,30)
-        self.targetValueLabel.setMaximumSize(100,30)
+        self.targetValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.targetValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
         
         targetLayout = QHBoxLayout()
         targetLayout.addWidget(targetTitleLabel)
         targetLayout.addWidget(self.targetValueLabel)
+        
+        ####### Voltage
+        sensedTitleLabel = QLabel('Sensed')
+        sensedTitleLabel.setFont(QFont(fontName, labelFont))
+        
+        self.sensedValueLabel = QLabel('5.432')
+        self.sensedValueLabel.setFont(QFont(fontName, valueFont))
+        self.sensedValueLabel.setStyleSheet("""
+        background-color: white;
+        color: black;
+        border: 1px solid black;
+        """)
+        self.sensedValueLabel.setAlignment(Qt.AlignCenter)
+        self.sensedValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.sensedValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
+        
+        sensedLayout = QHBoxLayout()
+        sensedLayout.addWidget(sensedTitleLabel)
+        sensedLayout.addWidget(self.sensedValueLabel)
+        
+        mainLayout = QVBoxLayout()
+        #mainLayout.addWidget(titleLabel)
+
+        mainLayout.addLayout(stateLayout)
+        mainLayout.addLayout(ambLayout)
+        mainLayout.addLayout(targetLayout)
+        mainLayout.addLayout(sensedLayout)
+        
+        self.setLayout(mainLayout)
+        
+    def update(self,stateVal,tempValues):
+        self.stateValueLabel.setText(stateVal)
+        self.ambValueLabel.setText(tempValues[0])
+        self.targetValueLabel.setText(tempValues[1])
+        self.sensedValueLabel.setText(tempValues[2])
+        
+class converterStatusWidget(QGroupBox):
+    
+    def __init__(self):
+        
+        super().__init__()
+        
+        self.setTitle("CONVERTER")
+        
+        labelFont = 8
+        valueFont = 10
+        valueLabelWidth = 80
+        valueLabelHeight = 20
+        
+        ####### State
+        stateTitleLabel = QLabel('State')
+        stateTitleLabel.setFont(QFont(fontName, labelFont))
+        
+        self.stateValueLabel = QLabel('5.432')
+        self.stateValueLabel.setFont(QFont(fontName, valueFont))
+        self.stateValueLabel.setStyleSheet("""
+        background-color: white;
+        color: black;
+        border: 1px solid black;
+        """)
+        self.stateValueLabel.setAlignment(Qt.AlignCenter)
+        self.stateValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.stateValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
+        
+        stateLayout = QHBoxLayout()
+        stateLayout.addWidget(stateTitleLabel)
+        stateLayout.addWidget(self.stateValueLabel)
+        
+        ####### amb
+        voltTitleLabel = QLabel('Voltage')
+        voltTitleLabel.setFont(QFont(fontName, labelFont))
+        
+        self.voltValueLabel = QLabel('5.432')
+        self.voltValueLabel.setFont(QFont(fontName, valueFont))
+        self.voltValueLabel.setStyleSheet("""
+        background-color: white;
+        color: black;
+        border: 1px solid black;
+        """)
+        self.voltValueLabel.setAlignment(Qt.AlignCenter)
+        self.voltValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.voltValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
+        
+        voltLayout = QHBoxLayout()
+        voltLayout.addWidget(voltTitleLabel)
+        voltLayout.addWidget(self.voltValueLabel)
+        
+        ####### Voltage
+        currTitleLabel = QLabel('Current')
+        currTitleLabel.setFont(QFont(fontName, labelFont))
+        
+        self.currValueLabel = QLabel('5.432')
+        self.currValueLabel.setFont(QFont(fontName, valueFont))
+        self.currValueLabel.setStyleSheet("""
+        background-color: white;
+        color: black;
+        border: 1px solid black;
+        """)
+        self.currValueLabel.setAlignment(Qt.AlignCenter)
+        self.currValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.currValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
+        
+        currLayout = QHBoxLayout()
+        currLayout.addWidget(currTitleLabel)
+        currLayout.addWidget(self.currValueLabel)
+        
+        ####### Voltage
+        powerTitleLabel = QLabel('Power')
+        powerTitleLabel.setFont(QFont(fontName, labelFont))
+        
+        self.powerValueLabel = QLabel('5.432')
+        self.powerValueLabel.setFont(QFont(fontName, valueFont))
+        self.powerValueLabel.setStyleSheet("""
+        background-color: white;
+        color: black;
+        border: 1px solid black;
+        """)
+        self.powerValueLabel.setAlignment(Qt.AlignCenter)
+        self.powerValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.powerValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
+        
+        powerLayout = QHBoxLayout()
+        powerLayout.addWidget(powerTitleLabel)
+        powerLayout.addWidget(self.powerValueLabel)
+        
+        ####### Voltage
+        effTitleLabel = QLabel('Efficiency')
+        effTitleLabel.setFont(QFont(fontName, labelFont))
+        
+        self.effValueLabel = QLabel('5.432')
+        self.effValueLabel.setFont(QFont(fontName, valueFont))
+        self.effValueLabel.setStyleSheet("""
+        background-color: white;
+        color: black;
+        border: 1px solid black;
+        """)
+        self.effValueLabel.setAlignment(Qt.AlignCenter)
+        self.effValueLabel.setMinimumSize(valueLabelWidth,valueLabelHeight)
+        self.effValueLabel.setMaximumSize(valueLabelWidth,valueLabelHeight)
+        
+        effLayout = QHBoxLayout()
+        effLayout.addWidget(effTitleLabel)
+        effLayout.addWidget(self.effValueLabel)
         
         
         mainLayout = QVBoxLayout()
         #mainLayout.addWidget(titleLabel)
 
         mainLayout.addLayout(stateLayout)
-        mainLayout.addLayout(functionLayout)
-        mainLayout.addLayout(ambLayout)
-        mainLayout.addLayout(targetLayout)
+        mainLayout.addLayout(voltLayout)
+        mainLayout.addLayout(currLayout)
+        mainLayout.addLayout(powerLayout)
+        mainLayout.addLayout(effLayout)
         
         self.setLayout(mainLayout)
+        
+    def update(self,stateVal,convValues,inPower):
+        self.stateValueLabel.setText(stateVal)
+        self.voltValueLabel.setText(convValues[0])
+        self.currValueLabel.setText(convValues[1])
+        self.powerValueLabel.setText(convValues[2])
+        
+        try:
+            eff = float(convValues[2])/inPower
+            outStr = f'{eff:3.2f}'
+        except:
+            outStr = "Error"
+        self.effValueLabel.setText(outStr)
+
 
 
 if __name__ == '__main__':
