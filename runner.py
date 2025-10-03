@@ -481,12 +481,11 @@ class mainWin(QMainWindow):
 		self.outFile = ''
 		self.startTime = time.time()
 		self.mm.TimeData = []
-		self.mm.Load01VoltData = []
-		self.mm.Load01CurrentData = []
-		self.mm.Supply01VoltData = []
-		self.mm.Supply01CurrentData = []
-		self.mm.TempAmbientFData = []
-		self.mm.TempProbeFData = []
+		
+		self.mm.voltTimeHistory = [[]]*ELEC_DATA_LEN
+		self.mm.currentTimeHistory = [[]]*ELEC_DATA_LEN
+		self.mm.tempTimeHistory [[]]*TIME_DATA_LEN
+		
         
 class mainWidget(QWidget):
 	
@@ -537,33 +536,29 @@ class mainWidget(QWidget):
 		controlLayout.addWidget(self.currentControl)
 		
 		self.TimeData = []
-		self.Load01VoltData = []
-		self.Load01CurrentData = []
+		self.voltTimeHistory = [[]]*ELEC_DATA_LEN
+		self.currentTimeHistory = [[]]*ELEC_DATA_LEN
+		self.tempTimeHistory = [[]]*TEMP_DATA_LEN
+		
 		self.Load01CurrentState = False
-		
-		self.Supply01VoltData = []
-		self.Supply01CurrentData = []
 		self.Supply01CurrentState = False
-		
-		self.TempAmbientFData = []
-		self.TempProbeFData = []
         
 		self.volts = self.w.addPlot(row=0, col=0)
 		self.volts.setTitle("Volts")
 		self.volts.setYRange(0,15)
-		self.Load01VoltLine = self.volts.plot(x = self.TimeData,y = self.Load01VoltData,pen = loadPen)
-		self.Supply01VoltLine = self.volts.plot(x = self.TimeData,y = self.Supply01VoltData, pen = supplyPen)
-		self.ConvVoltLine = self.volts.plot(x = self.TimeData,y = self.Supply01VoltData, pen = convPen)
-		self.setVoltLine = self.volts.plot(x = self.TimeData,y = self.Supply01VoltData, pen = setPen)
+		self.Load01VoltLine = self.volts.plot(x = self.TimeData,y = self.voltTimeHistory[LOAD_IND],pen = loadPen)
+		self.Supply01VoltLine = self.volts.plot(x = self.TimeData,y = self.voltTimeHistory[SUPPLY_IND], pen = supplyPen)
+		self.ConvVoltLine = self.volts.plot(x = self.TimeData,y = self.voltTimeHistory[CONV_IND], pen = convPen)
+		self.setVoltLine = self.volts.plot(x = self.TimeData,y = self.voltTimeHistory[SET_IND], pen = setPen)
 		
 		
 		self.current = self.w.addPlot(row=1, col=0)
 		self.current.setTitle("Current")
 		self.current.setYRange(-5,5)
-		self.Load01CurrentLine = self.current.plot(x = self.TimeData,y = self.Load01CurrentData,pen = loadPen)
-		self.Supply01CurrentLine = self.current.plot(x = self.TimeData,y = self.Supply01CurrentData, pen = supplyPen)
-		self.ConvCurrentLine = self.current.plot(x = self.TimeData,y = self.Supply01CurrentData, pen = convPen)
-		self.setCurrentLine = self.current.plot(x = self.TimeData,y = self.Supply01CurrentData, pen = setPen)
+		self.Load01CurrentLine = self.current.plot(x = self.TimeData,y = self.currentTimeHistory[LOAD_IND],pen = loadPen)
+		self.Supply01CurrentLine = self.current.plot(x = self.TimeData,y = self.currentTimeHistory[SUPPLY_IND], pen = supplyPen)
+		self.ConvCurrentLine = self.current.plot(x = self.TimeData,y = self.currentTimeHistory[CONV_IND], pen = convPen)
+		self.setCurrentLine = self.current.plot(x = self.TimeData,y = self.currentTimeHistory[SET_IND], pen = setPen)
 		
 		elecLegend = self.current.addLegend()
 		elecLegend.addItem(name = "Supply",item = self.Supply01CurrentLine)
@@ -575,9 +570,9 @@ class mainWidget(QWidget):
 		self.temperature.setTitle("Temp (F)")
 		self.temperature.setYRange(0,150)
 		
-		self.ambientTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempAmbientFData, pen = ambPen)
-		self.probeTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempProbeFData, pen = probePen)
-		self.convTempFLine = self.temperature.plot(x = self.TimeData,y = self.TempProbeFData, pen = convPen)
+		self.ambientTempFLine = self.temperature.plot(x = self.TimeData,y = self.tempTimeHistory[TEMP_AMB_IND], pen = ambPen)
+		self.probeTempFLine = self.temperature.plot(x = self.TimeData,y = self.tempTimeHistory[TEMP_MEASURE_IND], pen = probePen)
+		self.convTempFLine = self.temperature.plot(x = self.TimeData,y = self.tempTimeHistory[TEMP_SENSE_IND], pen = convPen)
 		
 		tempLegend = self.temperature.addLegend()
 		tempLegend.addItem(name = "Amb",item = self.ambientTempFLine)
@@ -612,24 +607,38 @@ class mainWidget(QWidget):
 		self.TimeData.append(t)
 		
 		if LOAD_01_ERROR == None:
-			self.Load01VoltData.append(voltData[1])
-			self.Load01CurrentData.append(currentData[1])
-			self.Load01VoltLine.setData(self.Load01VoltData)
-			self.Load01CurrentLine.setData(self.Load01CurrentData)
+			self.voltTimeHistory[LOAD_IND].append(voltData[LOAD_IND])
+			self.currentTimeHistory[LOAD_IND].append(currentData[LOAD_IND])
+			self.currentTimeHistory[SET_IND].append(currentData[SET_IND])
+			
+			self.Load01VoltLine.setData(self.voltTimeHistory[LOAD_IND])
+			self.Load01CurrentLine.setData(self.currentTimeHistory[LOAD_IND])
+			self.setVoltLine.setData(self.currentTimeHistory[SET_IND])
 			
 			
 		if SUPPLY_ERROR == None:
-			self.Supply01VoltData.append(voltData[2])
-			self.Supply01CurrentData.append(currentData[2])
+			self.voltTimeHistory[SUPPLY_IND].append(voltData[SUPPLY_IND])
+			self.voltTimeHistory[SET_IND].append(voltData[SET_IND])
+			self.currentTimeHistory[SUPPLY_IND].append(currentData[SUPPLY_IND])
 		
-			self.Supply01VoltLine.setData(self.Supply01VoltData)
-			self.Supply01CurrentLine.setData(self.Supply01CurrentData)
+			self.Supply01VoltLine.setData(self.voltTimeHistory[SUPPLY_IND])
+			self.setCurrentLine.setData(self.voltTimeHistory[SET_IND])
+			self.Supply01CurrentLine.setData(self.currentTimeHistory[SUPPLY_IND])
 			
 		if TEMP_ERROR == None:
-			self.TempAmbientFData.append(float(tempData[0]))
-			self.TempProbeFData.append(float(tempData[1]))
-			self.ambientTempFLine.setData(self.TempAmbientFData)
-			self.probeTempFLine.setData(self.TempProbeFData)
+			self.tempTimeHistory[TEMP_AMB_IND].append(float(tempData[TEMP_AMB_IND]))
+			self.tempTimeHistory[TEMP_MEASURE_IND].append(float(tempData[TEMP_MEASURE_IND]))
+			self.tempTimeHistory[TEMP_SENSE_IND].append(float(tempData[TEMP_SENSE_IND]))
+			
+			self.ambientTempFLine.setData(self.tempTimeHistory[TEMP_AMB_IND])
+			self.probeTempFLine.setData(self.tempTimeHistory[TEMP_MEASURE_IND])
+			self.convTempFLine.setData(self.tempTimeHistory[TEMP_SENSE_IND])
+			
+			self.voltTimeHistory[CONV_IND].append(voltData[CONV_IND])
+			self.currentTimeHistory[CONV_IND].append(currentData[CONV_IND])
+			
+			self.ConvVoltLine.setData(self.voltTimeHistory[CONV_IND])
+			self.ConvCurrentLine.setData(self.currentTimeHistory[CONV_IND])
 			
 	def updateSupply(self,idnstr,statestr,funcstr,currfl,voltfl,voltSet,powerfl):
 		
