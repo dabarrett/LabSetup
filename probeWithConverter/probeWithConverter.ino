@@ -1,4 +1,5 @@
 /***************************************************
+
   This is a library example for the MLX90614 Temp Sensor
 
   Designed specifically to work with the MLX90614 sensors in the
