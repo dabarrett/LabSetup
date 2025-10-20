@@ -15,10 +15,14 @@
   Written by Limor Fried/Ladyada for Adafruit Industries.
   BSD license, all text above must be included in any redistribution
  ****************************************************/
-
+#include <Adafruit_INA260.h>
 #include <Adafruit_MLX90614.h>
+#include "Adafruit_MCP9808.h"
 
 Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+Adafruit_INA260 ina260 = Adafruit_INA260();
+Adafruit_MCP9808 tempsensor = Adafruit_MCP9808();
+
 int messageReading = 0;
 
 void setup() {
@@ -27,19 +31,18 @@ void setup() {
 
   Serial.println("Adafruit MLX90614 test");
 
-  if (!mlx.begin()) {
+  if (!mlx.begin(0x5A)) {
     Serial.println("Error connecting to MLX sensor. Check wiring.");
     while (1);
   };
-  if (!ina260.begin(0x18)) {
+  if (!ina260.begin(0x4E)) {
     Serial.println("Couldn't find INA260 chip");
-    while (1);
+
   }
-  Serial.println("Found INA260 chip");
 
   if (!tempsensor.begin(0x18)) {
     Serial.println("Couldn't find MCP9808! Check your connections and verify the address is correct.");
-    while (1);
+
   }
 
   tempsensor.setResolution(1);
