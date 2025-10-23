@@ -127,15 +127,23 @@ class mainWin(QMainWindow):
 				print("Supply not connected")
 				SUPPLY_ERROR = 1
 		
-		try:
-			self.arduino = serial.Serial(port='/dev/ttyACM0', baudrate=9600, timeout=.1)
-			TEMP_ERROR = None
+		#try:
+		self.arduino = serial.Serial(port='/dev/ttyACM0', baudrate=9600, timeout=.1)
+		TEMP_ERROR = None
 			
 			
-		except serial.serialutil.SerialException:
-			print("Arduino not found")
-			TEMP_ERROR = 1
-		
+		#except serial.serialutil.SerialException:
+		#	print("Arduino not found on ACM0, trying on ACM1")
+		#	
+		#	try:
+		#		self.arduino = serial.Serial(port='/dev/ttyACM1', baudrate=9600, timeout=.1)
+		#		TEMP_ERROR = None
+		#		
+		#	except serial.serialutil.SerialException:
+		#		print("Arduino not found on ACM0 or ACM1")
+		#		TEMP_ERROR = 1
+			
+			
         
 		self.setCentralWidget(self.mm)
 
@@ -176,7 +184,7 @@ class mainWin(QMainWindow):
 			# [CONV_IND] is the power converter current, measured after the converter, by the INA260
 			# [LOAD_IND] is the Load current, as measured by the load generator
 			
-			tempData = [None]*3
+			tempData = [None]*TEMP_DATA_LEN
 			# [TEMP_AMB_IND] is the ambient temperature
 			# [TEMP_MEASURE_IND] is the measured temperature
 			# [TEMP_SENSE_IND] is the sensed temperatature at the power converter
@@ -214,15 +222,15 @@ class mainWin(QMainWindow):
 					self.supply01.write(":MEASure?")
 					#print(self.supply01.read())
 					supplyVoltNow = float(self.supply01.read())
-					voltData[1] = supplyVoltNow
+					voltData[SUPPLY_IND] = supplyVoltNow
 						
 					self.supply01.write(":MEASure:CURRent?")
 					supplyCurrentNow = float(self.supply01.read())
-					currentData[1] = supplyCurrentNow
+					currentData[SUPPLY_IND] = supplyCurrentNow
 					
 					self.supply01.write(":MEASure:POWEr? CH1")
 					supplyPowerNow = float(self.supply01.read())
-					powerData[0] = supplyPowerNow
+					powerData[SUPPLY_IND] = supplyPowerNow
 					
 					self.mm.updateSupply(idstr,'None',supplyMode,currentData[SUPPLY_IND],voltData[SUPPLY_IND],voltData[SET_IND],powerData[SUPPLY_IND])
 					
@@ -241,6 +249,8 @@ class mainWin(QMainWindow):
 					SUPPLY_ERROR = 1
 					self.mm.updateSupply('None','ERROR','None',currentData[SUPPLY_IND],voltData[SUPPLY_IND],voltData[SET_IND],powerData[SUPPLY_IND])
 					
+				if SUPPLY_ERROR == 1:
+					print("Supply Error")
 				#print("\tSupply Errors " + str(SUPPLY_ERROR) + "\n")
 				
 				#print("Loading Load\n")
@@ -262,21 +272,23 @@ class mainWin(QMainWindow):
 					
 					self.load01.write(f":SOURce:CURRent?")
 					currSet = float(self.load01.read())
-					currentData[0] = currSet
+					currentData[SET_IND] = currSet
 					
 					self.load01.write(":MEASure:VOLTage?")
 					loadVoltNow = float(self.load01.read())
-					voltData[3] = loadVoltNow
+					voltData[LOAD_IND] = loadVoltNow
 						
 					self.load01.write(":MEASure:CURRent?")
 					loadCurrentNow = float(self.load01.read())
-					currentData[3] = loadCurrentNow
+					currentData[LOAD_IND] = loadCurrentNow
 					
-					self.load01.write(":MEASure:POWer[:DC]?")
+					#print("Trying to load power")
+					
+					self.load01.write(":MEASure:POWer?")
 					loadPowerNow = float(self.load01.read())
-					powerData[2] = loadPowerNow
+					powerData[LOAD_IND] = loadPowerNow
 					
-					
+					#print("Set up Load")
 					self.mm.updateLoad(idstr,'None',loadMode,currentData[LOAD_IND],voltData[LOAD_IND],currentData[SET_IND],powerData[LOAD_IND])
 					
 					
@@ -293,16 +305,24 @@ class mainWin(QMainWindow):
 					LOAD_01_ERROR = 1
 					self.mm.updateLoad('None','ERROR','None',currentData[LOAD_IND],voltData[LOAD_IND],currentData[SET_IND],powerData[LOAD_IND])
 					
-				#print("\tLoad Errors " + str(LOAD_01_ERROR) + "\n")
+				if LOAD_01_ERROR == 1:
+					print("Supply Error")
+				else:
+					#print("No Supply Error")
+					pass
 					
 			else:
 				self.mm.updateLoad('None','ERROR','None',currentData[LOAD_IND],voltData[LOAD_IND],currentData[SET_IND],powerData[LOAD_IND])
 				self.mm.updateSupply('None','ERROR','None',currentData[SUPPLY_IND],voltData[SUPPLY_IND],voltData[SET_IND],powerData[SUPPLY_IND])
 				
+				
+			#print("Reading Arduino")	
 			if TEMP_ERROR == None:
 				self.arduino.write(bytes(":T", 'utf-8'))
 				time.sleep(0.05)
 				readData = self.arduino.readline().decode('utf-8')
+				#print(readData)
+				#print('Reading Arduino Message')
 				
 				if ":T:" in readData:
 					td = readData.split(":T:")
@@ -316,18 +336,41 @@ class mainWin(QMainWindow):
 						self.mm.updateTemp('Error',['-999','-999'])
 				elif ":M:" in readData:
 					td = readData.split(":M:")
-					
-					if len(td) == 4:
-						inData = td[1].split(",")
+					inData = td[1].split(",")
+					#print(inData)
+					if len(inData) == 6:
+						
+						
 
-						tempData[TEMP_AMB_IND] = inData[0]
-						tempData[TEMP_MEAUSRE_IND] = inData[1]
-						tempData[TEMP_SENSE_IND] = inData[2]
-						voltData[CONV_IND] = inData[3]
-						currentData[CONV_IND] = inData[4]
-						powerData[CONV_IND] = inData[5]
+						tempData[TEMP_AMB_IND] = float (inData[0])
+						tempData[TEMP_MEASURE_IND] = float(inData[1])
+						tempData[TEMP_SENSE_IND] = float(inData[2])
+						voltData[CONV_IND] = float(inData[3])/1000.
+						currentData[CONV_IND] = float(inData[4])/1000.
+						powerData[CONV_IND] = float(inData[5])/1000.
 						
 						self.mm.updateTemp('None',tempData)
+						self.mm.updateConv('None',[voltData[CONV_IND],currentData[CONV_IND],powerData[CONV_IND]],supplyPowerNow)
+					else:
+						self.mm.updateTemp('Error',tempData)
+						self.mm.updateConv('Error',[voltData[CONV_IND],currentData[CONV_IND],powerData[CONV_IND]],-99)
+						
+				elif ":C:" in readData:
+					td = readData.split(":C:")
+					inData = td[1].split(",")
+					print(inData)
+					if len(inData) == 4:
+						
+						tempData[TEMP_AMB_IND] = -99.
+						tempData[TEMP_MEASURE_IND] = -99.
+
+						tempData[TEMP_SENSE_IND] = float(inData[0])
+						voltData[CONV_IND] = float(inData[1])/1000.
+						currentData[CONV_IND] = float(inData[2])/1000.
+						powerData[CONV_IND] = float(inData[3])/1000.
+						print(powerData[CONV_IND])
+						
+						self.mm.updateTemp('DISC',tempData)
 						self.mm.updateConv('None',[voltData[CONV_IND],currentData[CONV_IND],powerData[CONV_IND]],supplyPowerNow)
 					else:
 						self.mm.updateTemp('Error',tempData)
@@ -499,28 +542,28 @@ class mainWidget(QWidget):
 		super().__init__()
 		
 		supplyPen = QPen()
-		supplyPen.setWidth(2)
+		#supplyPen.setWidth(2)
 		supplyPen.setColor(Qt.blue)
 		
 		convPen = QPen()
-		convPen.setWidth(2)
+		#convPen.setWidth(2)
 		convPen.setColor(Qt.green)
 		
 		loadPen = QPen()
-		loadPen.setWidth(2)
+		#loadPen.setWidth(1)
 		loadPen.setColor(Qt.white)
 		
 		setPen = QPen()
-		setPen.setWidth(2)
+		#setPen.setWidth(1)
 		setPen.setColor(Qt.red)
 		setPen.setStyle(Qt.DashDotLine)
 		
 		ambPen = QPen()
-		ambPen.setWidth(2)
+		#ambPen.setWidth(1)
 		ambPen.setColor(Qt.blue)
 		
 		probePen = QPen()
-		probePen.setWidth(2)
+		#probePen.setWidth(1)
 		probePen.setColor(Qt.white)
         
 		self.w = pg.GraphicsLayoutWidget()
@@ -1091,9 +1134,24 @@ class tempStatusWidget(QGroupBox):
         
     def update(self,stateVal,tempValues):
         self.stateValueLabel.setText(stateVal)
-        self.ambValueLabel.setText(tempValues[0])
-        self.targetValueLabel.setText(tempValues[1])
-        self.sensedValueLabel.setText(tempValues[2])
+        av = tempValues[0]
+        if av != None:
+            self.ambValueLabel.setText(f'{av:3.2f}')
+        else:
+            self.ambValueLabel.setText('')
+            
+        tv = tempValues[1]
+        if tv != None:
+            self.targetValueLabel.setText(f'{tv:3.2f}')
+        else:
+            self.targetValueLabel.setText('')
+            
+        sv = tempValues[2]
+        if sv != None:
+            self.sensedValueLabel.setText(f'{sv:3.2f}')
+        else:
+            self.sensedValueLabel.setText('')
+            
         
 class converterStatusWidget(QGroupBox):
     
@@ -1217,16 +1275,30 @@ class converterStatusWidget(QGroupBox):
         
     def update(self,stateVal,convValues,inPower):
         self.stateValueLabel.setText(stateVal)
-        self.voltValueLabel.setText(convValues[0])
-        self.currValueLabel.setText(convValues[1])
-        self.powerValueLabel.setText(convValues[2])
         
-        try:
-            eff = float(convValues[2])/inPower
-            outStr = f'{eff:3.2f}'
-        except:
-            outStr = "Error"
-        self.effValueLabel.setText(outStr)
+        vv = convValues[0]
+        if vv != None:
+            self.voltValueLabel.setText(f'{vv:3.2f}')
+        else:
+            self.voltValueLabel.setText('')
+            
+        cv = convValues[1]
+        if cv != None:
+            self.currValueLabel.setText(f'{cv:3.2f}')
+        else:
+            self.currValueLabel.setText('')
+            
+        pv = convValues[2]
+        if pv != None:
+            self.powerValueLabel.setText(f'{pv:3.2f}')
+            if inPower != 0:
+                eff = float(pv)/inPower
+                self.effValueLabel.setText(f'{eff:3.2f}')
+            else:
+                self.effValueLabel.setText('')
+        else:
+            self.powerValueLabel.setText('')
+            self.effValueLabel.setText('')
 
 
 
