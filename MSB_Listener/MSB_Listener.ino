@@ -37,6 +37,9 @@ void loop() {
     MessageTypeEnum canmt = msbMsgStruct.header.getMessageType();
     EntityEnum cansend = msbMsgStruct.header.getSender();
 
+    Serial.print("      Message Type: ");
+    Serial.println(getMessageTypeEnumString(canmt));
+
 
   }
 
