@@ -30,6 +30,8 @@ void loop() {
 
   if (msb.getQueueSize() > 0){
 
+    Serial.println("Message Received");
+
     canMsgStruct msbMsgStruct = msb.getMessageFromQueue();
     EntityEnum candes = msbMsgStruct.header.getDestination();
     MessageTypeEnum canmt = msbMsgStruct.header.getMessageType();
