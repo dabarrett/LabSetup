@@ -5,6 +5,7 @@
 
 static const long PERIOD = 1000 ;
 static long gBlinkDate = PERIOD ; 
+int messageReading = 0;
 
 MSBCANInterface msb;
 
@@ -23,6 +24,43 @@ void loop() {
   //******************************************************
   // Handling incoming messages and perform frequent tasks
   //******************************************************
+
+  if (Serial.available() > 0) {
+    char receivedChar = Serial.read(); // Read a single character
+    if (receivedChar == ':'){
+      messageReading = 1;
+    } else if (messageReading == 1){
+      if (receivedChar == 'D'){
+
+        Serial.println("Trying to send shutdown command");
+
+        messageReading = 0;
+      } else if (receivedChar == 'U'){
+        Serial.println("Trying to send start command");
+
+        HeaderType outmsgHeader;
+        outmsgHeader.setDestination(EntityEnum::ALL);
+        outmsgHeader.setMessageType(MessageTypeEnum::SetEntityStateMDT);
+        outmsgHeader.setSender(EntityEnum::LAB_MONITOR);
+        
+        SetEntityState outMsg;
+        outMsg.setEntityID(EntityEnum::ALL);
+        outMsg.setTargetState(EntityStateEnum::STARTING);
+
+        Serial.println("    SetEntityStateMsg populated");
+
+        canMsgStruct outSerial;
+        outSerial.header = outmsgHeader;
+        outSerial.msgFrame = outMsg.createNewMessage(outmsgHeader);
+        
+        uint32_t msbSendStatus = msb.sendMessage(outSerial.msgFrame);
+        Serial.print("      MSB Sending Status: ");
+        Serial.println(msbSendStatus);
+  
+      }
+
+    }
+  }
 
   // Incoming from MBS
 
