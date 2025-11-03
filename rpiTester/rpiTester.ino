@@ -13,7 +13,7 @@ void setup() {
   SPI.end();
 
   pinMode(SHUTDOWN_IND_PIN,INPUT);
-  pinMode(POWER_BUTTON_PIN,OUTPUT);
+  pinMode(POWER_BUTTON_PIN,INPUT);
 
 }
 
