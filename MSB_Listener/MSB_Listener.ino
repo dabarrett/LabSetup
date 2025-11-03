@@ -1,3 +1,8 @@
+int periodicDebugMode = 0;
+int msbReceiptDebugMode = 0;
+int msbReceiptDebugModeVerbose = 0;
+int commandDebugMode = 1;
+
 #include "msbLib.h"
 #define CAN0_MESSAGE_RAM_SIZE (0)
 #define CAN1_MESSAGE_RAM_SIZE (1728)
@@ -31,12 +36,38 @@ void loop() {
       messageReading = 1;
     } else if (messageReading == 1){
       if (receivedChar == 'D'){
+        if (commandDebugMode==1){
+          Serial.println("Trying to send shutdown command");
+        }
 
-        Serial.println("Trying to send shutdown command");
+        HeaderType outmsgHeader;
+        outmsgHeader.setDestination(EntityEnum::ALL);
+        outmsgHeader.setMessageType(MessageTypeEnum::SetEntityStateMDT);
+        outmsgHeader.setSender(EntityEnum::LAB_MONITOR);
+        
+        SetEntityState outMsg;
+        outMsg.setEntityID(EntityEnum::ALL);
+        outMsg.setTargetState(EntityStateEnum::SHUTTING_DOWN);
+        if (commandDebugMode==1){
+          Serial.println("    SetEntityStateMsg populated");
+        }
+
+        canMsgStruct outSerial;
+        outSerial.header = outmsgHeader;
+        outSerial.msgFrame = outMsg.createNewMessage(outmsgHeader);
+
+        uint32_t msbSendStatus = msb.sendMessage(outSerial.msgFrame);
+        if (commandDebugMode==1){
+          Serial.print("      MSB Sending Status: ");
+          Serial.println(msbSendStatus);
+        }
+        
 
         messageReading = 0;
       } else if (receivedChar == 'U'){
-        Serial.println("Trying to send start command");
+        if (commandDebugMode==1){
+          Serial.println("Trying to send start command");
+        }
 
         HeaderType outmsgHeader;
         outmsgHeader.setDestination(EntityEnum::ALL);
@@ -46,20 +77,24 @@ void loop() {
         SetEntityState outMsg;
         outMsg.setEntityID(EntityEnum::ALL);
         outMsg.setTargetState(EntityStateEnum::STARTING);
-
-        Serial.println("    SetEntityStateMsg populated");
+        if (commandDebugMode==1){
+          Serial.println("    SetEntityStateMsg populated");
+        }
 
         canMsgStruct outSerial;
         outSerial.header = outmsgHeader;
         outSerial.msgFrame = outMsg.createNewMessage(outmsgHeader);
-        
+
         uint32_t msbSendStatus = msb.sendMessage(outSerial.msgFrame);
-        Serial.print("      MSB Sending Status: ");
-        Serial.println(msbSendStatus);
+        if (commandDebugMode==1){
+          Serial.print("      MSB Sending Status: ");
+          Serial.println(msbSendStatus);
+        }
   
       }
 
     }
+    
   }
 
   // Incoming from MBS
@@ -67,17 +102,19 @@ void loop() {
   msb.msbLoop();
 
   if (msb.getQueueSize() > 0){
-
-    Serial.println("Message Received");
+    if (msbReceiptDebugMode==1){
+      Serial.println("Message Received");
+    }
 
     canMsgStruct msbMsgStruct = msb.getMessageFromQueue();
     EntityEnum candes = msbMsgStruct.header.getDestination();
     MessageTypeEnum canmt = msbMsgStruct.header.getMessageType();
     EntityEnum cansend = msbMsgStruct.header.getSender();
 
-    Serial.print("      Message Type: ");
-    Serial.println(getMessageTypeEnumString(canmt));
-
+    if (msbReceiptDebugMode==1){
+      Serial.print("      Message Type: ");
+      Serial.println(getMessageTypeEnumString(canmt));
+    }
 
   }
 
