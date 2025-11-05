@@ -47,7 +47,7 @@ void loop() {
         
         SetEntityState outMsg;
         outMsg.setEntityID(EntityEnum::ALL);
-        outMsg.setTargetState(EntityStateEnum::SHUTTING_DOWN);
+        outMsg.setTargetState(EntityStateEnum::LOW_POWER);
         if (commandDebugMode==1){
           Serial.println("    SetEntityStateMsg populated");
         }
@@ -76,7 +76,7 @@ void loop() {
         
         SetEntityState outMsg;
         outMsg.setEntityID(EntityEnum::ALL);
-        outMsg.setTargetState(EntityStateEnum::STARTING);
+        outMsg.setTargetState(EntityStateEnum::OPERATING);
         if (commandDebugMode==1){
           Serial.println("    SetEntityStateMsg populated");
         }
